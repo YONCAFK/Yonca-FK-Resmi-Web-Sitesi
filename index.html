@@ -1,0 +1,1071 @@
+<!DOCTYPE html>
+<html lang="tr" class="dark scroll-smooth">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Yonca FK - Resmi Kulüp Web Sitesi</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Google Font - Inter -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <!-- Vue 3 CDN -->
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+
+  <!-- Firebase Compat SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+          },
+          colors: {
+            darkbg: '#0b100e',
+            darkcard: '#101914',
+            darkcardhover: '#16221b',
+            darkborder: '#1e3025',
+            accent: '#8ce3a6',
+            accenthover: '#6ed38c',
+            accentdim: 'rgba(140, 227, 166, 0.12)',
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    body {
+      background-color: #0b100e;
+      color: #e2e8f0;
+      font-family: 'Inter', sans-serif;
+    }
+    .accent-glow {
+      box-shadow: 0 0 25px rgba(140, 227, 166, 0.18);
+    }
+    .accent-glow-sm {
+      box-shadow: 0 0 12px rgba(140, 227, 166, 0.25);
+    }
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0b100e;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #1e3025;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #8ce3a6;
+    }
+    .fade-enter-active, .fade-leave-active {
+      transition: opacity 0.3s ease;
+    }
+    .fade-enter-from, .fade-leave-to {
+      opacity: 0;
+    }
+  </style>
+</head>
+<body class="antialiased min-h-screen flex flex-col justify-between selection:bg-accent selection:text-black">
+
+  <div id="app">
+    <!-- TOAST BİLDİRİMİ -->
+    <transition name="fade">
+      <div v-if="toast.show" 
+           :class="toast.isError ? 'bg-red-950/90 border-red-500 text-red-200' : 'bg-darkcard border-accent text-accent'"
+           class="fixed bottom-6 right-6 z-50 px-5 py-3.5 rounded-xl border shadow-2xl flex items-center space-x-3 transition-all duration-300">
+        <i :class="toast.isError ? 'fas fa-triangle-exclamation text-red-400' : 'fas fa-circle-check text-accent'"></i>
+        <span class="font-medium text-sm">{{ toast.message }}</span>
+      </div>
+    </transition>
+
+    <!-- ÜST MENÜ (NAVBAR) -->
+    <header class="sticky top-0 z-40 bg-darkbg/90 backdrop-blur-md border-b border-darkborder/70">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex items-center justify-between h-20">
+          
+          <!-- Logo & Başlık -->
+          <a href="#" class="flex items-center space-x-3 group">
+            <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-accent to-emerald-700 flex items-center justify-center text-black font-black text-xl shadow-lg group-hover:scale-105 transition-transform">
+              <i class="fa-solid fa-clover text-2xl text-darkbg"></i>
+            </div>
+            <div>
+              <span class="text-xl font-black tracking-wider text-white flex items-center gap-1.5">
+                YONCA <span class="text-accent">FK</span>
+              </span>
+              <span class="block text-[10px] uppercase font-bold text-gray-400 tracking-widest">Resmi Web Sitesi</span>
+            </div>
+          </a>
+
+          <!-- Masaüstü Bağlantılar -->
+          <nav class="hidden md:flex items-center space-x-8 font-semibold text-sm">
+            <a href="#match" class="text-gray-300 hover:text-accent transition-colors flex items-center gap-2">
+              <i class="fa-regular fa-calendar-alt text-xs text-accent"></i> Sıradaki Maç
+            </a>
+            <a href="#roster" class="text-gray-300 hover:text-accent transition-colors flex items-center gap-2">
+              <i class="fa-solid fa-users text-xs text-accent"></i> Kadro
+            </a>
+            <a href="#standings" class="text-gray-300 hover:text-accent transition-colors flex items-center gap-2">
+              <i class="fa-solid fa-trophy text-xs text-accent"></i> Puan Durumu
+            </a>
+          </nav>
+
+          <!-- Admin Giriş / Çıkış Butonları -->
+          <div class="flex items-center space-x-3">
+            <div v-if="isAdmin" class="hidden sm:flex items-center bg-accent/10 border border-accent/30 text-accent text-xs font-semibold px-3 py-1.5 rounded-lg">
+              <span class="w-2 h-2 rounded-full bg-accent animate-ping mr-2"></span>
+              Admin Modu Aktif
+            </div>
+
+            <button v-if="!isAdmin" 
+                    @click="openLoginModal" 
+                    class="bg-darkcard hover:bg-darkborder border border-darkborder hover:border-accent/40 text-gray-200 hover:text-accent font-semibold text-xs sm:text-sm px-4 py-2.5 rounded-xl transition-all flex items-center gap-2 shadow-sm">
+              <i class="fa-solid fa-lock text-accent"></i>
+              <span>Admin Girişi</span>
+            </button>
+
+            <template v-else>
+              <button @click="logoutAdmin" 
+                      class="bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 font-semibold text-xs sm:text-sm px-4 py-2.5 rounded-xl transition-all flex items-center gap-2">
+                <i class="fa-solid fa-right-from-bracket"></i>
+                <span>Çıkış Yap</span>
+              </button>
+            </template>
+          </div>
+
+        </div>
+      </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-16">
+
+      <!-- GİZLİ ADMIN KONTROL PANELI BAR (Admin modundaysa) -->
+      <div v-if="isAdmin" class="bg-darkcard border border-accent/30 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 accent-glow-sm">
+        <div class="flex items-center gap-3">
+          <i class="fa-solid fa-user-gear text-accent text-xl"></i>
+          <div>
+            <h3 class="text-white font-bold text-sm">Yönetici Paneli Aktif</h3>
+            <p class="text-xs text-gray-400">Oyuncuları düzenleyebilir, yeni oyuncu ekleyebilir/silebilir, sıradaki maçı ve puan durumunu değiştirebilirsiniz.</p>
+          </div>
+        </div>
+        <button @click="resetToDefaultData" 
+                class="text-xs bg-red-900/40 hover:bg-red-900/70 border border-red-500/30 text-red-300 font-medium px-3.5 py-2 rounded-lg transition whitespace-nowrap">
+          <i class="fa-solid fa-rotate-left mr-1.5"></i> Varsayılana Sıflırla
+        </button>
+      </div>
+
+      <!-- SIRADAKİ MAÇ BÖLÜMÜ -->
+      <section id="match" class="relative rounded-3xl overflow-hidden border border-darkborder bg-gradient-to-b from-darkcard to-[#0d1410] p-6 sm:p-10 shadow-2xl">
+        <div class="absolute -right-10 -bottom-10 w-96 h-96 bg-accent/5 rounded-full blur-3xl pointer-events-none"></div>
+        <div class="absolute -left-10 -top-10 w-80 h-80 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none"></div>
+
+        <div class="flex flex-col md:flex-row items-center justify-between gap-6 mb-8 border-b border-darkborder/80 pb-6">
+          <div class="flex items-center gap-3">
+            <span class="px-3.5 py-1 rounded-full bg-accent/10 text-accent font-bold text-xs border border-accent/20 tracking-wide uppercase">
+              <i class="fa-solid fa-fire mr-1"></i> Mahalle Ligi Sıradaki Maç
+            </span>
+          </div>
+
+          <button v-if="isAdmin" 
+                  @click="openMatchModal" 
+                  class="bg-accent text-darkbg hover:bg-accenthover font-bold text-xs px-4 py-2 rounded-xl transition shadow-lg flex items-center gap-2">
+            <i class="fa-solid fa-pen-to-square"></i> Maçı Düzenle
+          </button>
+        </div>
+
+        <!-- Maç Kartı -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+          
+          <!-- Ev Sahibi Takım -->
+          <div class="lg:col-span-4 flex flex-col items-center text-center p-4">
+            <div class="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl bg-gradient-to-tr from-emerald-800 to-accent flex items-center justify-center shadow-xl mb-4 border-2 border-accent/40">
+              <i class="fa-solid fa-clover text-5xl text-darkbg"></i>
+            </div>
+            <h2 class="text-2xl sm:text-3xl font-black text-white tracking-wide">YONCA FK</h2>
+            <span class="text-xs text-accent font-semibold mt-1">Ev Sahibi Takım</span>
+          </div>
+
+          <!-- VS ve Maç Bilgileri -->
+          <div class="lg:col-span-4 flex flex-col items-center text-center py-4 px-6 bg-darkbg/60 rounded-2xl border border-darkborder">
+            <span class="text-3xl font-black text-accent tracking-widest my-1">VS</span>
+            
+            <div class="mt-3 space-y-1.5 text-sm">
+              <div class="flex items-center justify-center gap-2 text-gray-200 font-semibold">
+                <i class="fa-regular fa-calendar-check text-accent"></i>
+                <span>{{ nextMatch.date }}</span>
+              </div>
+              <div class="flex items-center justify-center gap-2 text-gray-300 font-medium">
+                <i class="fa-regular fa-clock text-accent"></i>
+                <span>Saat: {{ nextMatch.time }}</span>
+              </div>
+              <div class="flex items-center justify-center gap-2 text-gray-400 text-xs mt-2 pt-2 border-t border-darkborder">
+                <i class="fa-solid fa-location-dot text-accent"></i>
+                <span>{{ nextMatch.stadium }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Rakip Takım -->
+          <div class="lg:col-span-4 flex flex-col items-center text-center p-4">
+            <div class="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl bg-darkcard border-2 border-darkborder flex items-center justify-center shadow-xl mb-4">
+              <i class="fa-solid fa-shield-halved text-5xl text-gray-400"></i>
+            </div>
+            <h2 class="text-2xl sm:text-3xl font-black text-white tracking-wide uppercase">{{ nextMatch.opponent }}</h2>
+            <span class="text-xs text-gray-400 font-semibold mt-1">Rakip Takım</span>
+          </div>
+
+        </div>
+
+        <!-- Maç Notu -->
+        <div v-if="nextMatch.note" class="mt-8 bg-darkbg/80 border border-darkborder/90 rounded-xl p-4 text-center">
+          <p class="text-xs sm:text-sm text-gray-300 italic">
+            <i class="fa-solid fa-quote-left text-accent mr-2 opacity-50"></i>
+            {{ nextMatch.note }}
+            <i class="fa-solid fa-quote-right text-accent ml-2 opacity-50"></i>
+          </p>
+        </div>
+      </section>
+
+      <!-- TAKIM KADROSU BÖLÜMÜ -->
+      <section id="roster" class="space-y-6">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h2 class="text-2xl sm:text-3xl font-black text-white flex items-center gap-3">
+              <span class="w-3 h-8 bg-accent rounded-full inline-block"></span>
+              Oyuncu Kadrosu
+            </h2>
+            <p class="text-xs sm:text-sm text-gray-400 mt-1">Yonca FK oyuncuları, yetenek istatistikleri ve açıklamaları</p>
+          </div>
+
+          <button v-if="isAdmin" 
+                  @click="openAddPlayerModal" 
+                  class="bg-accent hover:bg-accenthover text-darkbg font-extrabold text-sm px-5 py-2.5 rounded-xl transition shadow-lg flex items-center justify-center gap-2 self-start sm:self-auto">
+            <i class="fa-solid fa-user-plus"></i> Yeni Oyuncu Ekle
+          </button>
+        </div>
+
+        <!-- Oyuncu Kartları Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div v-for="player in players" 
+               :key="player.id" 
+               class="bg-darkcard hover:bg-darkcardhover border border-darkborder hover:border-accent/30 rounded-2xl p-6 transition-all duration-300 flex flex-col justify-between relative group">
+            
+            <!-- Forma Numarası Rozeti -->
+            <div class="absolute top-4 right-4 w-12 h-12 rounded-xl bg-accent/10 border border-accent/20 flex items-center justify-center text-accent font-black text-xl group-hover:scale-110 transition-transform">
+              #{{ player.number }}
+            </div>
+
+            <div>
+              <!-- Oyuncu Header -->
+              <div class="flex items-center gap-4 mb-4">
+                <div class="w-14 h-14 rounded-2xl bg-darkbg border border-darkborder flex items-center justify-center text-accent font-bold text-2xl">
+                  <i :class="player.position === 'Kaleci' ? 'fa-solid fa-hands-mitten' : 'fa-solid fa-user-ninja'"></i>
+                </div>
+                <div>
+                  <h3 class="text-lg font-bold text-white group-hover:text-accent transition-colors leading-snug">{{ player.name }}</h3>
+                  <span class="inline-block px-2.5 py-0.5 rounded-md bg-darkborder text-gray-300 font-semibold text-xs mt-1">
+                    {{ player.position }}
+                  </span>
+                </div>
+              </div>
+
+              <!-- Biyografi / Açıklama -->
+              <p class="text-xs text-gray-400 mb-6 line-clamp-4 leading-relaxed min-h-[4rem]">
+                {{ player.bio || 'Oyuncu açıklaması bulunmuyor.' }}
+              </p>
+
+              <!-- Özellik Barları (Stats) -->
+              <div class="space-y-3 mb-6 bg-darkbg/50 p-3.5 rounded-xl border border-darkborder/60">
+                <div>
+                  <div class="flex justify-between text-xs font-semibold mb-1">
+                    <span class="text-gray-400">{{ player.position === 'Kaleci' ? 'Refleks' : 'Hız' }}</span>
+                    <span class="text-accent">{{ player.stats.speed }}</span>
+                  </div>
+                  <div class="w-full bg-darkbg rounded-full h-1.5 overflow-hidden">
+                    <div class="bg-accent h-1.5 rounded-full transition-all duration-500" :style="{ width: player.stats.speed + '%' }"></div>
+                  </div>
+                </div>
+
+                <div>
+                  <div class="flex justify-between text-xs font-semibold mb-1">
+                    <span class="text-gray-400">{{ player.position === 'Kaleci' ? 'Uçuş / Atlama' : 'Şut Gücü' }}</span>
+                    <span class="text-accent">{{ player.stats.shooting }}</span>
+                  </div>
+                  <div class="w-full bg-darkbg rounded-full h-1.5 overflow-hidden">
+                    <div class="bg-accent h-1.5 rounded-full transition-all duration-500" :style="{ width: player.stats.shooting + '%' }"></div>
+                  </div>
+                </div>
+
+                <div>
+                  <div class="flex justify-between text-xs font-semibold mb-1">
+                    <span class="text-gray-400">{{ player.position === 'Kaleci' ? 'Pozisyon Alma' : 'Pas / Vizyon' }}</span>
+                    <span class="text-accent">{{ player.stats.passing }}</span>
+                  </div>
+                  <div class="w-full bg-darkbg rounded-full h-1.5 overflow-hidden">
+                    <div class="bg-accent h-1.5 rounded-full transition-all duration-500" :style="{ width: player.stats.passing + '%' }"></div>
+                  </div>
+                </div>
+
+                <div>
+                  <div class="flex justify-between text-xs font-semibold mb-1">
+                    <span class="text-gray-400">Fizik / Güç</span>
+                    <span class="text-accent">{{ player.stats.physics }}</span>
+                  </div>
+                  <div class="w-full bg-darkbg rounded-full h-1.5 overflow-hidden">
+                    <div class="bg-accent h-1.5 rounded-full transition-all duration-500" :style="{ width: player.stats.physics + '%' }"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Admin Eylemleri -->
+            <div v-if="isAdmin" class="pt-4 border-t border-darkborder flex items-center justify-end gap-2">
+              <button @click="openEditPlayerModal(player)" 
+                      class="px-3 py-1.5 rounded-lg bg-darkborder hover:bg-gray-700 text-gray-200 text-xs font-semibold transition flex items-center gap-1.5">
+                <i class="fa-solid fa-pen"></i> Düzenle
+              </button>
+              <button v-if="pendingDeletePlayerId !== player.id"
+                      @click="pendingDeletePlayerId = player.id" 
+                      class="px-3 py-1.5 rounded-lg bg-red-900/30 hover:bg-red-900/60 border border-red-500/30 text-red-300 text-xs font-semibold transition flex items-center gap-1.5">
+                <i class="fa-solid fa-trash-can"></i> Sil
+              </button>
+              <button v-else
+                      @click="deletePlayer(player.id)" 
+                      class="px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-white text-xs font-bold transition flex items-center gap-1.5">
+                <i class="fa-solid fa-check"></i> Onayla
+              </button>
+            </div>
+
+          </div>
+        </div>
+      </section>
+
+      <!-- PUAN DURUMU BÖLÜMÜ -->
+      <section id="standings" class="space-y-6">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h2 class="text-2xl sm:text-3xl font-black text-white flex items-center gap-3">
+              <span class="w-3 h-8 bg-accent rounded-full inline-block"></span>
+              Mahalle Ligi Puan Durumu
+            </h2>
+            <p class="text-xs sm:text-sm text-gray-400 mt-1">Puan ve averaja göre otomatik sıralanan lig tablosu</p>
+          </div>
+
+          <button v-if="isAdmin" 
+                  @click="openAddTeamModal" 
+                  class="bg-accent hover:bg-accenthover text-darkbg font-extrabold text-sm px-5 py-2.5 rounded-xl transition shadow-lg flex items-center justify-center gap-2 self-start sm:self-auto">
+            <i class="fa-solid fa-plus"></i> Takım Ekle
+          </button>
+        </div>
+
+        <div class="bg-darkcard border border-darkborder rounded-2xl overflow-hidden shadow-xl">
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-sm text-gray-300">
+              <thead class="bg-darkbg text-xs font-bold text-gray-400 uppercase tracking-wider border-b border-darkborder">
+                <tr>
+                  <th scope="col" class="py-4 px-4 text-center w-12">Sıra</th>
+                  <th scope="col" class="py-4 px-4">Takım</th>
+                  <th scope="col" class="py-4 px-3 text-center">O</th>
+                  <th scope="col" class="py-4 px-3 text-center">G</th>
+                  <th scope="col" class="py-4 px-3 text-center">B</th>
+                  <th scope="col" class="py-4 px-3 text-center">M</th>
+                  <th scope="col" class="py-4 px-3 text-center">AV</th>
+                  <th scope="col" class="py-4 px-4 text-center font-black text-white">Puan</th>
+                  <th v-if="isAdmin" scope="col" class="py-4 px-4 text-right">İşlemler</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-darkborder/60 font-medium">
+                <tr v-for="(team, index) in sortedStandings" 
+                    :key="team.id" 
+                    :class="team.isYonca ? 'bg-accent/10 border-l-4 border-l-accent text-white font-semibold' : 'hover:bg-darkcardhover'">
+                  
+                  <td class="py-4 px-4 text-center font-bold" :class="team.isYonca ? 'text-accent' : 'text-gray-400'">
+                    {{ index + 1 }}
+                  </td>
+
+                  <td class="py-4 px-4 flex items-center gap-3">
+                    <div :class="team.isYonca ? 'bg-accent text-darkbg' : 'bg-darkborder text-gray-400'" 
+                         class="w-8 h-8 rounded-lg flex items-center justify-center font-black text-xs">
+                      <i v-if="team.isYonca" class="fa-solid fa-clover"></i>
+                      <span v-else>{{ team.name.substring(0,2).toUpperCase() }}</span>
+                    </div>
+                    <span class="font-bold tracking-wide" :class="team.isYonca ? 'text-accent text-base' : 'text-gray-200'">
+                      {{ team.name }}
+                      <span v-if="team.isYonca" class="ml-2 text-[10px] bg-accent/20 text-accent border border-accent/40 px-2 py-0.5 rounded-full uppercase">Kulübümüz</span>
+                    </span>
+                  </td>
+
+                  <td class="py-4 px-3 text-center text-gray-300">{{ team.played }}</td>
+                  <td class="py-4 px-3 text-center text-emerald-400 font-semibold">{{ team.won }}</td>
+                  <td class="py-4 px-3 text-center text-amber-400 font-semibold">{{ team.drawn }}</td>
+                  <td class="py-4 px-3 text-center text-red-400 font-semibold">{{ team.lost }}</td>
+                  <td class="py-4 px-3 text-center font-semibold" :class="team.gd > 0 ? 'text-emerald-400' : team.gd < 0 ? 'text-red-400' : 'text-gray-400'">
+                    {{ team.gd > 0 ? '+' + team.gd : team.gd }}
+                  </td>
+                  <td class="py-4 px-4 text-center font-black text-base" :class="team.isYonca ? 'text-accent' : 'text-white'">
+                    {{ team.points }}
+                  </td>
+
+                  <td v-if="isAdmin" class="py-4 px-4 text-right">
+                    <div class="flex items-center justify-end gap-1.5">
+                      <button @click="openEditTeamModal(team)" 
+                              class="p-1.5 rounded bg-darkborder hover:bg-gray-700 text-gray-200 text-xs transition" 
+                              title="Düzenle">
+                        <i class="fa-solid fa-pen"></i>
+                      </button>
+                      <button v-if="pendingDeleteTeamId !== team.id"
+                              @click="pendingDeleteTeamId = team.id" 
+                              class="p-1.5 rounded bg-red-900/30 hover:bg-red-900/60 text-red-300 text-xs transition" 
+                              title="Sil">
+                        <i class="fa-solid fa-trash-can"></i>
+                      </button>
+                      <button v-else
+                              @click="deleteTeam(team.id)" 
+                              class="px-2 py-1 rounded bg-red-600 hover:bg-red-500 text-white text-xs font-bold transition" 
+                              title="Onayla">
+                        Sil?
+                      </button>
+                    </div>
+                  </td>
+
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- FOOTER -->
+    <footer class="bg-darkbg border-t border-darkborder py-8 mt-16">
+      <div class="max-w-7xl mx-auto px-4 text-center space-y-3">
+        <div class="flex items-center justify-center space-x-2">
+          <i class="fa-solid fa-clover text-accent text-xl"></i>
+          <span class="font-black text-white text-lg tracking-wider">YONCA FK</span>
+        </div>
+        <p class="text-xs text-gray-500">
+          © 2026 Yonca FK Resmi Web Sitesi. Tüm hakları saklıdır.
+        </p>
+      </div>
+    </footer>
+
+    <!-- MODALLAR -->
+
+    <!-- 1. ADMIN GİRİŞ MODAL (ŞİFRE İPUCU KALDIRILDI) -->
+    <div v-if="modals.login" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+      <div class="bg-darkcard border border-darkborder rounded-2xl w-full max-w-md p-6 shadow-2xl relative">
+        <button @click="closeModals" class="absolute top-4 right-4 text-gray-400 hover:text-white">
+          <i class="fa-solid fa-xmark text-xl"></i>
+        </button>
+
+        <div class="text-center mb-6">
+          <div class="w-14 h-14 bg-accent/10 border border-accent/20 rounded-2xl flex items-center justify-center text-accent text-2xl mx-auto mb-3">
+            <i class="fa-solid fa-shield-halved"></i>
+          </div>
+          <h3 class="text-xl font-bold text-white">Admin Girişi</h3>
+          <p class="text-xs text-gray-400 mt-1">Yönetim paneline erişim için yetkili şifresini giriniz.</p>
+        </div>
+
+        <form @submit.prevent="loginAdmin" class="space-y-4">
+          <div>
+            <label class="block text-xs font-semibold text-gray-300 mb-1.5">Yönetici Şifresi</label>
+            <input type="password" 
+                   v-model="loginPassword" 
+                   placeholder="••••••••" 
+                   required
+                   class="w-full bg-darkbg border border-darkborder rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-accent">
+          </div>
+
+          <button type="submit" 
+                  class="w-full bg-accent hover:bg-accenthover text-darkbg font-bold text-sm py-3 rounded-xl transition shadow-lg">
+            Giriş Yap
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- 2. SIRADAKİ MAÇ DÜZENLE MODAL -->
+    <div v-if="modals.match" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+      <div class="bg-darkcard border border-darkborder rounded-2xl w-full max-w-lg p-6 shadow-2xl relative">
+        <button @click="closeModals" class="absolute top-4 right-4 text-gray-400 hover:text-white">
+          <i class="fa-solid fa-xmark text-xl"></i>
+        </button>
+
+        <h3 class="text-xl font-bold text-white mb-4">Sıradaki Maçı Düzenle</h3>
+
+        <form @submit.prevent="saveMatch" class="space-y-4">
+          <div>
+            <label class="block text-xs font-semibold text-gray-300 mb-1">Rakip Takım Adı</label>
+            <input type="text" v-model="matchForm.opponent" required class="w-full bg-darkbg border border-darkborder rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-accent">
+          </div>
+
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-semibold text-gray-300 mb-1">Tarih</label>
+              <input type="text" v-model="matchForm.date" placeholder="Örn: Pazar" required class="w-full bg-darkbg border border-darkborder rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-accent">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-gray-300 mb-1">Saat</label>
+              <input type="text" v-model="matchForm.time" placeholder="Örn: 20:30" required class="w-full bg-darkbg border border-darkborder rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-accent">
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold text-gray-300 mb-1">Saha / Konum</label>
+            <input type="text" v-model="matchForm.stadium" required class="w-full bg-darkbg border border-darkborder rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-accent">
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold text-gray-300 mb-1">Maç Açıklaması / Notu</label>
+            <textarea v-model="matchForm.note" rows="3" class="w-full bg-darkbg border border-darkborder rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-accent"></textarea>
+          </div>
+
+          <div class="flex justify-end gap-3 pt-2">
+            <button type="button" @click="closeModals" class="px-4 py-2 rounded-xl bg-darkborder text-gray-300 text-xs font-semibold">İptal</button>
+            <button type="submit" class="px-5 py-2 rounded-xl bg-accent hover:bg-accenthover text-darkbg text-xs font-bold">Kaydet</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- 3. OYUNCU EKLE / DÜZENLE MODAL -->
+    <div v-if="modals.player" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+      <div class="bg-darkcard border border-darkborder rounded-2xl w-full max-w-lg p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
+        <button @click="closeModals" class="absolute top-4 right-4 text-gray-400 hover:text-white">
+          <i class="fa-solid fa-xmark text-xl"></i>
+        </button>
+
+        <h3 class="text-xl font-bold text-white mb-4">
+          {{ editingPlayerId ? 'Oyuncu Bilgilerini Düzenle' : 'Yeni Oyuncu Ekle' }}
+        </h3>
+
+        <form @submit.prevent="savePlayer" class="space-y-4">
+          <div class="grid grid-cols-3 gap-4">
+            <div class="col-span-2">
+              <label class="block text-xs font-semibold text-gray-300 mb-1">Ad Soyad</label>
+              <input type="text" v-model="playerForm.name" required class="w-full bg-darkbg border border-darkborder rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-accent">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-gray-300 mb-1">Forma No</label>
+              <input type="number" v-model.number="playerForm.number" required class="w-full bg-darkbg border border-darkborder rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-accent">
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold text-gray-300 mb-1">Mevki</label>
+            <select v-model="playerForm.position" class="w-full bg-darkbg border border-darkborder rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-accent">
+              <option value="Kaleci">Kaleci</option>
+              <option value="Defans">Defans</option>
+              <option value="Defansif Orta Saha">Defansif Orta Saha</option>
+              <option value="Orta Saha">Orta Saha</option>
+              <option value="Kanat">Kanat</option>
+              <option value="Forvet">Forvet</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold text-gray-300 mb-1">Oyuncu Açıklaması / Biyografi</label>
+            <textarea v-model="playerForm.bio" rows="3" class="w-full bg-darkbg border border-darkborder rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-accent" placeholder="Oyuncunun yetenekleri, özellikleri vb."></textarea>
+          </div>
+
+          <!-- İstatistik Sürgüleri (Stats) -->
+          <div class="space-y-3 bg-darkbg/70 p-4 rounded-xl border border-darkborder">
+            <span class="block text-xs font-bold text-accent uppercase">Oyuncu Özellik Puanları (0 - 100)</span>
+            
+            <div>
+              <div class="flex justify-between text-xs text-gray-300 mb-1">
+                <span>{{ playerForm.position === 'Kaleci' ? 'Refleks' : 'Hız' }}</span>
+                <span class="font-bold text-accent">{{ playerForm.stats.speed }}</span>
+              </div>
+              <input type="range" min="30" max="99" v-model.number="playerForm.stats.speed" class="w-full accent-accent">
+            </div>
+
+            <div>
+              <div class="flex justify-between text-xs text-gray-300 mb-1">
+                <span>{{ playerForm.position === 'Kaleci' ? 'Uçuş / Atlama' : 'Şut Gücü' }}</span>
+                <span class="font-bold text-accent">{{ playerForm.stats.shooting }}</span>
+              </div>
+              <input type="range" min="30" max="99" v-model.number="playerForm.stats.shooting" class="w-full accent-accent">
+            </div>
+
+            <div>
+              <div class="flex justify-between text-xs text-gray-300 mb-1">
+                <span>{{ playerForm.position === 'Kaleci' ? 'Pozisyon Alma' : 'Pas / Vizyon' }}</span>
+                <span class="font-bold text-accent">{{ playerForm.stats.passing }}</span>
+              </div>
+              <input type="range" min="30" max="99" v-model.number="playerForm.stats.passing" class="w-full accent-accent">
+            </div>
+
+            <div>
+              <div class="flex justify-between text-xs text-gray-300 mb-1">
+                <span>Fizik / Güç</span>
+                <span class="font-bold text-accent">{{ playerForm.stats.physics }}</span>
+              </div>
+              <input type="range" min="30" max="99" v-model.number="playerForm.stats.physics" class="w-full accent-accent">
+            </div>
+          </div>
+
+          <div class="flex justify-end gap-3 pt-2">
+            <button type="button" @click="closeModals" class="px-4 py-2 rounded-xl bg-darkborder text-gray-300 text-xs font-semibold">İptal</button>
+            <button type="submit" class="px-5 py-2 rounded-xl bg-accent hover:bg-accenthover text-darkbg text-xs font-bold">Kaydet</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- 4. TAKIM EKLE / DÜZENLE MODAL -->
+    <div v-if="modals.team" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+      <div class="bg-darkcard border border-darkborder rounded-2xl w-full max-w-lg p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
+        <button @click="closeModals" class="absolute top-4 right-4 text-gray-400 hover:text-white">
+          <i class="fa-solid fa-xmark text-xl"></i>
+        </button>
+
+        <h3 class="text-xl font-bold text-white mb-4">
+          {{ editingTeamId ? 'Takım İstatistiklerini Düzenle' : 'Yeni Takım Ekle' }}
+        </h3>
+
+        <form @submit.prevent="saveTeam" class="space-y-4">
+          <div>
+            <label class="block text-xs font-semibold text-gray-300 mb-1">Takım Adı</label>
+            <input type="text" v-model="teamForm.name" required class="w-full bg-darkbg border border-darkborder rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-accent">
+          </div>
+
+          <div class="grid grid-cols-4 gap-3">
+            <div>
+              <label class="block text-xs font-semibold text-gray-300 mb-1">Oynadığı (O)</label>
+              <input type="number" v-model.number="teamForm.played" min="0" required class="w-full bg-darkbg border border-darkborder rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-accent">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-gray-300 mb-1">Galibiyet (G)</label>
+              <input type="number" v-model.number="teamForm.won" min="0" required class="w-full bg-darkbg border border-darkborder rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-accent">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-gray-300 mb-1">Beraberlik (B)</label>
+              <input type="number" v-model.number="teamForm.drawn" min="0" required class="w-full bg-darkbg border border-darkborder rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-accent">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-gray-300 mb-1">Mağlubiyet (M)</label>
+              <input type="number" v-model.number="teamForm.lost" min="0" required class="w-full bg-darkbg border border-darkborder rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-accent">
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-semibold text-gray-300 mb-1">Averaj (AV)</label>
+              <input type="number" v-model.number="teamForm.gd" required class="w-full bg-darkbg border border-darkborder rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-accent">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-gray-300 mb-1">Puan</label>
+              <input type="number" v-model.number="teamForm.points" min="0" required class="w-full bg-darkbg border border-darkborder rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-accent">
+            </div>
+          </div>
+
+          <div class="flex items-center gap-2 pt-2">
+            <input type="checkbox" id="isYoncaCheck" v-model="teamForm.isYonca" class="w-4 h-4 accent-accent rounded">
+            <label for="isYoncaCheck" class="text-xs font-semibold text-gray-300 cursor-pointer">Bu Takım Yonca FK Kulübümüzdür (Yeşil Vurgu)</label>
+          </div>
+
+          <div class="flex justify-end gap-3 pt-2">
+            <button type="button" @click="closeModals" class="px-4 py-2 rounded-xl bg-darkborder text-gray-300 text-xs font-semibold">İptal</button>
+            <button type="submit" class="px-5 py-2 rounded-xl bg-accent hover:bg-accenthover text-darkbg text-xs font-bold">Kaydet</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- FIREBASE & VUE UYGULAMA MANTIĞI -->
+  <script>
+    // Firebase Konfigürasyonu
+    const firebaseConfig = {
+      apiKey: "AIzaSyBT_Qigg6O99mf6uhgxE07XF-jcE5WzaRA",
+      authDomain: "yonca-fk-resmi-sitesi.firebaseapp.com",
+      projectId: "yonca-fk-resmi-sitesi",
+      storageBucket: "yonca-fk-resmi-sitesi.firebasestorage.app",
+      messagingSenderId: "867343184289",
+      appId: "1:867343184289:web:331b12d78b5044ac4c1be0",
+      measurementId: "G-M41Q7B3BH3"
+    };
+
+    // Firebase Başlatma
+    let db = null;
+    try {
+      firebase.initializeApp(firebaseConfig);
+      db = firebase.firestore();
+    } catch (e) {
+      console.warn("Firebase başlatılamadı, yerel mod kullanılacak:", e);
+    }
+
+    // Varsayılan Kadro, Sıradaki Maç ve Puan Durumu Verileri
+    const DEFAULT_DATA = {
+      nextMatch: {
+        opponent: "Enes Sitesi",
+        date: "Pazar",
+        time: "20:30",
+        stadium: "Mahalle Halı Saha Arena",
+        note: "Dev Mahalle Derbisi! Yonca FK şampiyonluk yolunda kritik virajda."
+      },
+      players: [
+        {
+          id: 'p1',
+          name: 'Yiğit Uçar',
+          number: 23,
+          position: 'Orta Saha',
+          bio: 'Takımın maestrosu. Kilit pasları, temposu ve oyun zekasıyla Yonca FK ataklarının mimarı.',
+          stats: { speed: 88, shooting: 84, passing: 92, physics: 80 }
+        },
+        {
+          id: 'p2',
+          name: 'Mehmet Kemal Gencel',
+          number: 45,
+          position: 'Forvet',
+          bio: 'Ceza sahası içi bitirici golcü. Sol ayağından çıkan sert şutlarla ligin en çok gol atan isimlerinden biri.',
+          stats: { speed: 90, shooting: 94, passing: 78, physics: 85 }
+        },
+        {
+          id: 'p3',
+          name: 'Halil Emin Gemci',
+          number: 6,
+          position: 'Defansif Orta Saha',
+          bio: 'Orta sahanın geçilmez duvarı. Yüksek mücadele gücü, top kapma becerisi ve adam adama markajıyla rakibe nefes aldırmaz.',
+          stats: { speed: 82, shooting: 75, passing: 86, physics: 93 }
+        },
+        {
+          id: 'p4',
+          name: 'Ali Mert Edikli',
+          number: 1,
+          position: 'Kaleci',
+          bio: 'Kalede adeta devleşen, refleksleri ve çizgi hakimiyetiyle rakip forvetlerin korkulu rüyası.',
+          stats: { speed: 92, shooting: 89, passing: 87, physics: 90 }
+        }
+      ],
+      standings: [
+        { id: 't1', name: 'Yonca FK', played: 6, won: 5, drawn: 1, lost: 0, gd: 12, points: 16, isYonca: true },
+        { id: 't2', name: 'Enes Sitesi', played: 6, won: 4, drawn: 0, lost: 2, gd: 5, points: 12, isYonca: false },
+        { id: 't3', name: 'Altunpark FK', played: 6, won: 2, drawn: 1, lost: 3, gd: -2, points: 7, isYonca: false },
+        { id: 't4', name: 'Rahman Sitesi', played: 6, won: 0, drawn: 0, lost: 6, gd: -15, points: 0, isYonca: false }
+      ]
+    };
+
+    const { createApp, ref, computed, onMounted } = Vue;
+
+    createApp({
+      setup() {
+        // Durumlar (State)
+        const isAdmin = ref(false);
+        const loginPassword = ref('');
+        const pendingDeletePlayerId = ref(null);
+        const pendingDeleteTeamId = ref(null);
+        
+        const toast = ref({ show: false, message: '', isError: false });
+
+        const nextMatch = ref({ ...DEFAULT_DATA.nextMatch });
+        const players = ref([...DEFAULT_DATA.players]);
+        const standings = ref([...DEFAULT_DATA.standings]);
+
+        // Modallar
+        const modals = ref({
+          login: false,
+          match: false,
+          player: false,
+          team: false
+        });
+
+        // Form Verileri
+        const matchForm = ref({ opponent: '', date: '', time: '', stadium: '', note: '' });
+        
+        const editingPlayerId = ref(null);
+        const playerForm = ref({
+          name: '',
+          number: 10,
+          position: 'Orta Saha',
+          bio: '',
+          stats: { speed: 80, shooting: 80, passing: 80, physics: 80 }
+        });
+
+        const editingTeamId = ref(null);
+        const teamForm = ref({
+          name: '',
+          played: 0,
+          won: 0,
+          drawn: 0,
+          lost: 0,
+          gd: 0,
+          points: 0,
+          isYonca: false
+        });
+
+        // Otomatik Puan ve Averaj Sıralaması
+        const sortedStandings = computed(() => {
+          return [...standings.value].sort((a, b) => {
+            if (b.points !== a.points) return b.points - a.points;
+            return b.gd - a.gd;
+          });
+        });
+
+        // Bildirim Gösterici
+        const showToast = (message, isError = false) => {
+          toast.value = { show: true, message, isError };
+          setTimeout(() => {
+            toast.value.show = false;
+          }, 3500);
+        };
+
+        // Firebase Sync & Yükleme
+        const initDataSync = () => {
+          if (db) {
+            db.collection("yonca_club").doc("main_data").onSnapshot((doc) => {
+              if (doc.exists) {
+                const data = doc.data();
+                if (data.nextMatch) nextMatch.value = data.nextMatch;
+                if (data.players) players.value = data.players;
+                if (data.standings) standings.value = data.standings;
+              } else {
+                // Veri yoksa varsayılan veriyi yükle
+                saveDataToFirebase();
+              }
+            }, (error) => {
+              console.warn("Firestore bağlantı uyarısı, yerel veriye geçildi:", error.code || error);
+              loadLocalFallback();
+              if (error && error.code === 'permission-denied') {
+                showToast("Firestore kuralları erişimi engelliyor. Firebase Rules ayarını kontrol edin.", true);
+              }
+            });
+          } else {
+            loadLocalFallback();
+          }
+        };
+
+        const saveDataToFirebase = async () => {
+          const payload = {
+            nextMatch: nextMatch.value,
+            players: players.value,
+            standings: standings.value,
+            updatedAt: new Date().toISOString()
+          };
+
+          // Yerel depolama yedeği
+          localStorage.setItem('yonca_fk_data_v4', JSON.stringify(payload));
+
+          if (db) {
+            try {
+              await db.collection("yonca_club").doc("main_data").set(payload);
+            } catch (err) {
+              console.error("Firestore kaydetme hatası:", err);
+              if (err && err.code === 'permission-denied') {
+                showToast("Buluta kaydedilemedi: Firestore güvenlik kuralları izni reddetti.", true);
+              }
+            }
+          }
+        };
+
+        const loadLocalFallback = () => {
+          const local = localStorage.getItem('yonca_fk_data_v4');
+          if (local) {
+            try {
+              const parsed = JSON.parse(local);
+              nextMatch.value = parsed.nextMatch || DEFAULT_DATA.nextMatch;
+              players.value = parsed.players || DEFAULT_DATA.players;
+              standings.value = parsed.standings || DEFAULT_DATA.standings;
+            } catch (e) {
+              // Hata durumunda varsayılanlar
+            }
+          }
+        };
+
+        // Admin Giriş ve Çıkış
+        const openLoginModal = () => {
+          loginPassword.value = '';
+          modals.value.login = true;
+        };
+
+        const loginAdmin = () => {
+          if (loginPassword.value === 'adminadmin123') {
+            isAdmin.value = true;
+            sessionStorage.setItem('yonca_admin_session', 'true');
+            modals.value.login = false;
+            loginPassword.value = '';
+            showToast("Admin girişi başarılı! Tüm bilgileri değiştirebilirsiniz.");
+          } else {
+            showToast("Hatalı admin şifresi!", true);
+          }
+        };
+
+        const logoutAdmin = () => {
+          isAdmin.value = false;
+          sessionStorage.removeItem('yonca_admin_session');
+          showToast("Admin oturumu kapatıldı.");
+        };
+
+        const closeModals = () => {
+          modals.value.login = false;
+          modals.value.match = false;
+          modals.value.player = false;
+          modals.value.team = false;
+        };
+
+        // SIRADAKİ MAÇ DÜZENLEME
+        const openMatchModal = () => {
+          matchForm.value = { ...nextMatch.value };
+          modals.value.match = true;
+        };
+
+        const saveMatch = () => {
+          nextMatch.value = { ...matchForm.value };
+          saveDataToFirebase();
+          modals.value.match = false;
+          showToast("Sıradaki maç bilgileri güncellendi!");
+        };
+
+        // OYUNCU EKLEME / DÜZENLEME / SİLME
+        const openAddPlayerModal = () => {
+          editingPlayerId.value = null;
+          playerForm.value = {
+            name: '',
+            number: players.value.length ? Math.max(...players.value.map(p => p.number)) + 1 : 10,
+            position: 'Orta Saha',
+            bio: '',
+            stats: { speed: 80, shooting: 80, passing: 80, physics: 80 }
+          };
+          modals.value.player = true;
+        };
+
+        const openEditPlayerModal = (player) => {
+          editingPlayerId.value = player.id;
+          playerForm.value = JSON.parse(JSON.stringify(player));
+          modals.value.player = true;
+        };
+
+        const savePlayer = () => {
+          if (editingPlayerId.value) {
+            const index = players.value.findIndex(p => p.id === editingPlayerId.value);
+            if (index !== -1) {
+              players.value[index] = { id: editingPlayerId.value, ...playerForm.value };
+              showToast("Oyuncu bilgileri güncellendi.");
+            }
+          } else {
+            const newId = 'p_' + Date.now();
+            players.value.push({ id: newId, ...playerForm.value });
+            showToast("Yeni oyuncu kadroya eklendi!");
+          }
+          saveDataToFirebase();
+          modals.value.player = false;
+        };
+
+        const deletePlayer = (id) => {
+          players.value = players.value.filter(p => p.id !== id);
+          pendingDeletePlayerId.value = null;
+          saveDataToFirebase();
+          showToast("Oyuncu kadrodan silindi.");
+        };
+
+        // PUAN TABLOSU EKLEME / DÜZENLEME / SİLME
+        const openAddTeamModal = () => {
+          editingTeamId.value = null;
+          teamForm.value = {
+            name: '',
+            played: 0,
+            won: 0,
+            drawn: 0,
+            lost: 0,
+            gd: 0,
+            points: 0,
+            isYonca: false
+          };
+          modals.value.team = true;
+        };
+
+        const openEditTeamModal = (team) => {
+          editingTeamId.value = team.id;
+          teamForm.value = { ...team };
+          modals.value.team = true;
+        };
+
+        const saveTeam = () => {
+          if (editingTeamId.value) {
+            const index = standings.value.findIndex(t => t.id === editingTeamId.value);
+            if (index !== -1) {
+              standings.value[index] = { id: editingTeamId.value, ...teamForm.value };
+              showToast("Takım puan durumu güncellendi.");
+            }
+          } else {
+            const newId = 't_' + Date.now();
+            standings.value.push({ id: newId, ...teamForm.value });
+            showToast("Yeni takım lig puan durumuna eklendi!");
+          }
+          saveDataToFirebase();
+          modals.value.team = false;
+        };
+
+        const deleteTeam = (id) => {
+          standings.value = standings.value.filter(t => t.id !== id);
+          pendingDeleteTeamId.value = null;
+          saveDataToFirebase();
+          showToast("Takım puan tablosundan kaldırıldı.");
+        };
+
+        // VARSAYILANLARA SIFIRLA
+        const resetToDefaultData = () => {
+          nextMatch.value = { ...DEFAULT_DATA.nextMatch };
+          players.value = JSON.parse(JSON.stringify(DEFAULT_DATA.players));
+          standings.value = JSON.parse(JSON.stringify(DEFAULT_DATA.standings));
+          pendingDeletePlayerId.value = null;
+          pendingDeleteTeamId.value = null;
+          saveDataToFirebase();
+          showToast("Tüm veriler varsayılana sıfırlandı.");
+        };
+
+        onMounted(() => {
+          // Admin Oturum Kontrolü
+          if (sessionStorage.getItem('yonca_admin_session') === 'true') {
+            isAdmin.value = true;
+          }
+          initDataSync();
+        });
+
+        return {
+          isAdmin,
+          loginPassword,
+          pendingDeletePlayerId,
+          pendingDeleteTeamId,
+          toast,
+          nextMatch,
+          players,
+          standings,
+          sortedStandings,
+          modals,
+          matchForm,
+          editingPlayerId,
+          playerForm,
+          editingTeamId,
+          teamForm,
+          openLoginModal,
+          loginAdmin,
+          logoutAdmin,
+          closeModals,
+          openMatchModal,
+          saveMatch,
+          openAddPlayerModal,
+          openEditPlayerModal,
+          savePlayer,
+          deletePlayer,
+          openAddTeamModal,
+          openEditTeamModal,
+          saveTeam,
+          deleteTeam,
+          resetToDefaultData
+        };
+      }
+    }).mount('#app');
+  </script>
+</body>
+</html>
